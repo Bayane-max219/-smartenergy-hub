@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: storage-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/smartenergy}
+  cassandra:
+    contact-points: ${CASSANDRA_HOST:localhost}:${CASSANDRA_PORT:9042}
+    local-datacenter: ${CASSANDRA_DC:datacenter1}
+    keyspace-name: ${CASSANDRA_KEYSPACE:smartenergy}
+    schema-action: none   # schéma créé par scripts/init-cassandra.cql
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8082}
+
+smartenergy:
+  stream:
+    key: ${STREAM_KEY:energy-measurements}
+    dlq-key: ${STREAM_DLQ_KEY:energy-measurements-dlq}
+    group: ${STREAM_GROUP:storage-group}
+    consumer: ${STREAM_CONSUMER:storage-consumer-1}
+    batch-size: 50
+    block-ms: 2000
+    retry-backoff-ms: 3000
+    delete-after-ack: true      # XDEL après XACK : le flux ne contient que le backlog
+  sensors:
+    default-max-power-kw: ${DEFAULT_MAX_POWER_KW:8.0}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+server:
+  port: 8080

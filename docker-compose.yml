@@ -1,0 +1,118 @@
+# SmartEnergy Hub — lancement complet : docker compose up -d --build
+# Les bases ne sont PAS exposées sur l'hôte (réseau interne uniquement).
+# Pour y accéder en développement : docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    # appendonly : le flux survit à un redémarrage du conteneur
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cassandra:
+    image: cassandra:5.0
+    environment:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  # Tâche unique : crée le keyspace et la table (idempotent, IF NOT EXISTS)
+  cassandra-init:
+    image: cassandra:5.0
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-cassandra.cql:/init.cql:ro
+    command: ["cqlsh", "cassandra", "-f", "/init.cql"]
+    restart: "no"
+
+  collector-service:
+    build:
+      context: .
+      dockerfile: collector-service/Dockerfile
+    environment:
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "8081:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  storage-service:
+    build:
+      context: .
+      dockerfile: storage-service/Dockerfile
+    environment:
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      CASSANDRA_HOST: cassandra
+      MONGO_URI: mongodb://mongo:27017/smartenergy
+      DEFAULT_MAX_POWER_KW: ${DEFAULT_MAX_POWER_KW:-8.0}
+    ports:
+      - "8082:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      cassandra-init:
+        condition: service_completed_successfully
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    environment:
+      CASSANDRA_HOST: cassandra
+      MONGO_URI: mongodb://mongo:27017/smartenergy
+      DEFAULT_MAX_POWER_KW: ${DEFAULT_MAX_POWER_KW:-8.0}
+    ports:
+      - "8083:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      cassandra-init:
+        condition: service_completed_successfully
+
+  # Démarré à la demande : docker compose --profile sim up simulator
+  simulator:
+    profiles: ["sim"]
+    build: ./simulator
+    environment:
+      COLLECTOR_URL: http://collector-service:8080/api/measurements
+      SENSORS: ${SIM_SENSORS:-5}
+      INTERVAL: ${SIM_INTERVAL:-2}
+      DURATION: ${SIM_DURATION:-120}
+      ANOMALY_SENSOR: ${SIM_ANOMALY_SENSOR:-SENSOR-001}
+    depends_on:
+      - collector-service
+
+volumes:
+  mongo_data:
+  redis_data:
+  cassandra_data:

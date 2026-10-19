@@ -1,0 +1,5 @@
+[
+  {"sensorId": "SENSOR-001", "timestamp": "2026-09-30T08:15:00Z", "powerKw": 3.72, "voltage": 226.4, "temperature": 29.1},
+  {"sensorId": "SENSOR-001", "timestamp": "2026-09-30T08:15:05Z", "powerKw": 3.80, "voltage": 226.1, "temperature": 29.1},
+  {"sensorId": "SENSOR-002", "timestamp": "2026-09-30T08:15:00Z", "powerKw": 2.10, "voltage": 229.8, "temperature": 24.6}
+]

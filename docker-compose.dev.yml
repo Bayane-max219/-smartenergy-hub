@@ -1,0 +1,12 @@
+# Surcharge DÉVELOPPEMENT uniquement : expose les bases sur localhost.
+# Ne pas utiliser en production.
+services:
+  mongo:
+    ports:
+      - "127.0.0.1:27017:27017"
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+  cassandra:
+    ports:
+      - "127.0.0.1:9042:9042"

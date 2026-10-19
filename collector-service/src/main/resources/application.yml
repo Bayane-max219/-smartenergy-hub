@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: collector-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+smartenergy:
+  stream:
+    key: ${STREAM_KEY:energy-measurements}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+# Profil "docker" : les hôtes viennent des variables d'environnement du compose
+spring:
+  config:
+    activate:
+      on-profile: docker
+server:
+  port: 8080

@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: analytics-service
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/smartenergy}
+  cassandra:
+    contact-points: ${CASSANDRA_HOST:localhost}:${CASSANDRA_PORT:9042}
+    local-datacenter: ${CASSANDRA_DC:datacenter1}
+    keyspace-name: ${CASSANDRA_KEYSPACE:smartenergy}
+    schema-action: none
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8083}
+
+smartenergy:
+  analytics:
+    default-max-power-kw: ${DEFAULT_MAX_POWER_KW:8.0}
+    max-gap-seconds: 3600     # un trou plus long n'est pas compté dans l'énergie estimée
+    max-points: 100000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+server:
+  port: 8080
