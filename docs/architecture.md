@@ -15,6 +15,8 @@ Simulateur IoT ─HTTP POST─▶ Collector Service ─XADD─▶ Redis Stream "
                                                                 └── Analytics Service ──▶ API REST
 ```
 
+Un **dashboard** web (nginx, port 3000) lit les trois API par un relais nginx et ne contient aucune logique métier.
+
 Redis sert aussi de **cache** : hash `latest:{sensorId}` (dernière mesure, TTL 1 jour) mis à jour par le Storage Service, lu par `/latest`.
 
 ## Rôle de chaque composant

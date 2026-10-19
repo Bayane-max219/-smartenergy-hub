@@ -13,6 +13,7 @@ Simulateur ──HTTP──▶ Collector ──▶ Redis Streams ──▶ Stora
 | collector-service | 8081 | Reçoit/valide les mesures, les publie dans Redis Streams | http://localhost:8081/swagger-ui.html |
 | storage-service | 8082 | Consomme le flux (consumer group `storage-group`), persiste, expose capteurs + historique | http://localhost:8082/swagger-ui.html |
 | analytics-service | 8083 | Moyenne/min/max/énergie, anomalies, prévision | http://localhost:8083/swagger-ui.html |
+| dashboard | 3000 | Tableau de bord web (page statique + relais nginx vers les 3 services) | — |
 
 ## Prérequis
 
@@ -33,6 +34,10 @@ Le schéma Cassandra est créé automatiquement par le conteneur `cassandra-init
 docker compose ps                                  # tout doit être Up / healthy
 curl localhost:8081/api/health                     # {"status":"UP",...}
 ```
+
+### Tableau de bord
+
+Ouvrir **http://localhost:3000** : état de la chaîne (Collector → Redis → Storage → Analytics), indicateurs, courbe de puissance en temps réel avec seuil du capteur, anomalies (points rouges) et prévision, et trois boutons de démonstration (mesure normale, pic, mesure invalide) qui envoient réellement une mesure au Collector. Page unique sans dépendance externe (`dashboard/index.html`), thème clair/sombre.
 
 ### Générer des données
 
@@ -101,6 +106,7 @@ curl -s localhost:8081/actuator/prometheus | grep smartenergy
 
 ```
 collector-service/  storage-service/  analytics-service/   # modules Maven Spring Boot (+ Dockerfile)
+dashboard/          # tableau de bord web (index.html + nginx)
 simulator/          # simulateur de capteurs (Python, stdlib)
 scripts/            # init-cassandra.cql, sample-data.json, e2e-test.sh, perf-test.py
 docs/               # rapport.md, architecture.md, api.md, tests.md, performance.md

@@ -12,7 +12,7 @@ Les objets connectés produisent en continu des mesures de consommation (puissan
 
 SmartEnergy Hub répond à ce besoin par une architecture distribuée qui **collecte, stocke, analyse et expose** les données énergétiques, en répartissant le travail entre trois bases NoSQL selon leur point fort (Redis, Cassandra, MongoDB) et quatre services Spring Boot, le tout déployable par une seule commande Docker Compose.
 
-**Périmètre réalisé** : le MVP obligatoire du sujet (niveau 1) en entier, plus une prévision de référence (régression linéaire). Ne sont pas réalisés : modèle LSTM/DJL, JWT, Prometheus/Grafana, API Gateway, Kafka, Kubernetes, interface Web (§11).
+**Périmètre réalisé** : le MVP obligatoire du sujet (niveau 1) en entier, plus une prévision de référence (régression linéaire). Une interface Web simple (dashboard) est fournie en plus. Ne sont pas réalisés : modèle LSTM/DJL, JWT, Prometheus/Grafana, API Gateway, Kafka, Kubernetes (§11).
 
 ## 2. Cahier des charges et besoins fonctionnels
 
@@ -89,6 +89,8 @@ La clé de partition `(sensor_id, day)` borne la taille de chaque partition : un
 **Storage Service** — consumer Redis (§6), persistance (§7), API : CRUD des capteurs, résumé quotidien, historique, dernière mesure. Un capteur inconnu est auto-enregistré avec le seuil par défaut (8 kW).
 
 **Analytics Service** — voir §8. Le résumé quotidien du Storage (`daily-summary`) combine l'agrégat MongoDB (moyenne, min, max, anomalies) et l'énergie estimée calculée sur la partition Cassandra du jour.
+
+**Dashboard** (`dashboard/`, extension « interface Web ») — une page HTML sans dépendance servie par nginx, qui relaie `/collector`, `/storage` et `/analytics` vers les services (pas de problème de CORS) ; elle lit uniquement les API existantes (historique, résumé, anomalies, prévision, métriques Actuator) et propose des boutons de démonstration qui envoient une mesure normale, un pic ou une mesure invalide au Collector.
 
 Tous les services : OpenAPI/Swagger (`/swagger-ui.html`), Actuator, `/api/health`, profils Spring (`default` pour localhost, `docker` pour le conteneur), configuration par variables d'environnement.
 
@@ -174,7 +176,7 @@ Tableau de preuve complet : `docs/tests.md`.
 2. Authentification JWT avec rôles ADMIN/VIEWER, HTTPS via reverse proxy.
 3. Prometheus + Grafana (état de santé, mesures reçues/rejetées, backlog Redis, latence de prévision).
 4. Mise à l'échelle du Storage : plusieurs consumers, écritures par lots ; Kafka à plus grande échelle.
-5. Z-score robuste ; notifications lors d'une anomalie ; interface Web temps réel.
+5. Z-score robuste ; notifications lors d'une anomalie ; dashboard enrichi (multi-capteurs, historique long).
 
 ## 13. Conclusion
 

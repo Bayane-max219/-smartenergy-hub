@@ -99,6 +99,16 @@ services:
       cassandra-init:
         condition: service_completed_successfully
 
+  # Tableau de bord web (http://localhost:3000) : page statique + relais vers les 3 services
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - collector-service
+      - storage-service
+      - analytics-service
+
   # Démarré à la demande : docker compose --profile sim up simulator
   simulator:
     profiles: ["sim"]

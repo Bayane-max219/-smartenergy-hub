@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartEnergy Hub</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --border: #e2e5ea; --text: #1b1f27; --muted: #667085;
+    --accent: #2563eb; --accent-soft: #e8efff; --good: #15803d; --bad: #dc2626; --warn: #d97706;
+    --forecast: #7c3aed; --grid: #eceff3; --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #171b23; --border: #272d38; --text: #e8eaef; --muted: #9aa3b2;
+      --accent: #60a5fa; --accent-soft: #1c2a44; --good: #4ade80; --bad: #f87171; --warn: #fbbf24;
+      --forecast: #a78bfa; --grid: #222833; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #171b23; --border: #272d38; --text: #e8eaef; --muted: #9aa3b2;
+    --accent: #60a5fa; --accent-soft: #1c2a44; --good: #4ade80; --bad: #f87171; --warn: #fbbf24;
+    --forecast: #a78bfa; --grid: #222833; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  h1 small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .spacer { flex: 1; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  select, button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+                   border-radius: 8px; padding: 7px 11px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--bad); }
+  label.toggle { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+  .pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stage { padding: 12px 14px; position: relative; }
+  .stage h3 { margin: 0 0 4px; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+  .stage p { margin: 0; color: var(--muted); font-size: 12px; }
+  .stage b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.up { background: var(--good); } .dot.down { background: var(--bad); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { padding: 12px 14px; }
+  .kpi span { display: block; color: var(--muted); font-size: 12px; }
+  .kpi strong { font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .kpi strong small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+  .kpi.alert strong { color: var(--bad); }
+  .chart-card { padding: 14px 14px 10px; margin-bottom: 14px; }
+  .chart-head { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
+  .chart-head h2 { font-size: 14px; margin: 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; }
+  .legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+  .legend i.dashed { border-top-style: dashed; }
+  .legend i.pt { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--bad); }
+  .chart-box { position: relative; height: 330px; }
+  canvas { width: 100%; height: 100%; display: block; }
+  #tip { position: absolute; pointer-events: none; display: none; background: var(--surface); border: 1px solid var(--border);
+         border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); white-space: nowrap; z-index: 2; }
+  .grid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } .chart-box { height: 260px; } }
+  .panel { padding: 14px; }
+  .panel h2 { font-size: 14px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: 0; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: var(--accent-soft); color: var(--accent); margin-right: 4px; }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+  .muted { color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  #result { min-height: 40px; font-size: 12px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border);
+            white-space: pre-wrap; word-break: break-word; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  footer { margin-top: 18px; color: var(--muted); font-size: 12px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SmartEnergy Hub <small>Supervision énergétique — Spring Boot · Redis · Cassandra · MongoDB</small></h1>
+    <div class="spacer"></div>
+    <div class="controls">
+      <select id="sensor" aria-label="Capteur"></select>
+      <select id="range" aria-label="Période">
+        <option value="300">5 dernières minutes</option>
+        <option value="900" selected>15 dernières minutes</option>
+        <option value="3600">1 dernière heure</option>
+      </select>
+      <label class="toggle"><input type="checkbox" id="auto" checked> Temps réel</label>
+      <button id="theme" title="Basculer thème clair / sombre">Thème</button>
+    </div>
+  </header>
+
+  <section class="pipeline" aria-label="Chaîne de traitement">
+    <div class="card stage"><h3><span class="dot" id="d-collector"></span>Collector</h3><p>reçues <b id="m-received">–</b> · rejetées <b id="m-rejected">–</b></p></div>
+    <div class="card stage"><h3><span class="dot" id="d-redis"></span>Redis Streams</h3><p>backlog <b id="m-backlog">–</b> · en attente <b id="m-pending">–</b></p></div>
+    <div class="card stage"><h3><span class="dot" id="d-storage"></span>Storage</h3><p>stockées <b id="m-stored">–</b> · doublons <b id="m-dups">–</b></p></div>
+    <div class="card stage"><h3><span class="dot" id="d-analytics"></span>Analytics</h3><p>prévision <b id="m-model">–</b></p></div>
+  </section>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Puissance (kW)</h2>
+      <div class="legend">
+        <span><i style="border-color:var(--accent)"></i>mesures</span>
+        <span><i class="dashed" style="border-color:var(--warn)"></i>seuil du capteur</span>
+        <span><i class="pt"></i>anomalie</span>
+        <span><i class="dashed" style="border-color:var(--forecast)"></i>prévision</span>
+      </div>
+    </div>
+    <div class="chart-box"><canvas id="chart"></canvas><div id="tip"></div></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card panel">
+      <h2>Anomalies détectées</h2>
+      <table><thead><tr><th>Heure</th><th>Puissance</th><th>Détection</th></tr></thead><tbody id="anoms"></tbody></table>
+    </div>
+    <div class="card panel">
+      <h2>Démo : envoyer une mesure</h2>
+      <div class="actions">
+        <button class="primary" data-send="normal">Mesure normale</button>
+        <button data-send="spike">Pic (anomalie)</button>
+        <button class="danger" data-send="invalid">Mesure invalide</button>
+      </div>
+      <div id="result" class="muted">Les mesures partent vers le Collector (POST /api/measurements) puis traversent Redis → Storage → Cassandra/MongoDB.</div>
+      <h2 style="margin-top:16px">Prévision</h2>
+      <dl class="kv" id="forecast"><dt>—</dt><dd class="muted">pas assez de données</dd></dl>
+      <p class="note">Le modèle retenu est le meilleur de {régression linéaire, persistance} sur un jeu de test.</p>
+    </div>
+  </section>
+
+  <footer>
+    API documentées (Swagger) :
+    <a href="/collector/swagger-ui.html" target="_blank">Collector</a> ·
+    <a href="/storage/swagger-ui.html" target="_blank">Storage</a> ·
+    <a href="/analytics/swagger-ui.html" target="_blank">Analytics</a>
+    <span id="updated" style="float:right"></span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const DEFAULT_SENSOR = "SENSOR-001";
+const state = { sensors: [], points: [], anomalyTimes: new Set(), forecast: [], threshold: null,
+                from: 0, to: 0, hover: null, busy: false };
+
+/* ---------- helpers ---------- */
+const nf = (v, d = 2) => (v == null || Number.isNaN(v)) ? "–" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: d });
+const hhmmss = (t) => new Date(t).toLocaleTimeString("fr-FR");
+const iso = (ms) => new Date(ms).toISOString();
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const text = await r.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch (e) { body = text; }
+  return { ok: r.ok, status: r.status, body };
+}
+
+function parseProm(text) {
+  const out = {};
+  for (const line of text.split("\n")) {
+    if (!line || line[0] === "#") continue;
+    const m = line.match(/^([a-zA-Z_:][\w:]*)(?:\{[^}]*\})?\s+([-+0-9.eE]+|NaN)$/);
+    if (m) out[m[1]] = Number(m[2]);
+  }
+  return out;
+}
+
+/* ---------- data loading ---------- */
+async function loadSensors() {
+  const r = await api("/storage/api/sensors");
+  state.sensors = r.ok && Array.isArray(r.body) ? r.body : [];
+  const sel = $("sensor");
+  const current = sel.value;
+  const ids = state.sensors.map((s) => s.sensorId).sort();
+  if (ids.length === 0) ids.push(DEFAULT_SENSOR);
+  if (sel.options.length !== ids.length || [...sel.options].some((o, i) => o.value !== ids[i])) {
+    sel.innerHTML = "";
+    for (const id of ids) { const o = document.createElement("option"); o.value = o.textContent = id; sel.appendChild(o); }
+    sel.value = ids.includes(current) ? current : (ids.includes(DEFAULT_SENSOR) ? DEFAULT_SENSOR : ids[0]);
+  }
+}
+
+async function loadHealth() {
+  const check = async (svc, dot) => {
+    try { const r = await api(`/${svc}/api/health`); $(dot).className = "dot " + (r.ok ? "up" : "down"); return r.ok; }
+    catch (e) { $(dot).className = "dot down"; return false; }
+  };
+  await Promise.all([check("collector", "d-collector"), check("storage", "d-storage"), check("analytics", "d-analytics")]);
+}
+
+async function loadMetrics() {
+  try {
+    const [c, s] = await Promise.all([fetch("/collector/actuator/prometheus"), fetch("/storage/actuator/prometheus")]);
+    const cm = parseProm(await c.text()), sm = parseProm(await s.text());
+    $("m-received").textContent = nf(cm.smartenergy_measurements_received_total, 0);
+    $("m-rejected").textContent = nf(cm.smartenergy_measurements_rejected_total, 0);
+    $("m-backlog").textContent = nf(cm.smartenergy_stream_length, 0);
+    $("m-pending").textContent = nf(sm.smartenergy_stream_pending, 0);
+    $("m-stored").textContent = nf(sm.smartenergy_measurements_stored_total, 0);
+    $("m-dups").textContent = nf(sm.smartenergy_measurements_duplicates_total, 0);
+    $("d-redis").className = "dot " + (Number.isNaN(cm.smartenergy_stream_length) ? "down" : "up");
+  } catch (e) { $("d-redis").className = "dot down"; }
+}
+
+async function loadSensorData() {
+  const id = $("sensor").value || DEFAULT_SENSOR;
+  const rangeMs = Number($("range").value) * 1000;
+  const now = Date.now();
+  state.from = now - rangeMs;
+  state.to = now;
+  const q = `from=${encodeURIComponent(iso(state.from))}&to=${encodeURIComponent(iso(now + 60000))}`;
+  const enc = encodeURIComponent(id);
+
+  const [hist, sum, anom, fc] = await Promise.all([
+    api(`/storage/api/measurements/${enc}?${q}&limit=3000`),
+    api(`/analytics/api/analytics/${enc}/summary?${q}`),
+    api(`/analytics/api/analytics/${enc}/anomalies?${q}`),
+    api(`/analytics/api/analytics/${enc}/forecast?${q}&horizon=12`),
+  ]);
+
+  state.points = hist.ok && Array.isArray(hist.body)
+    ? hist.body.map((m) => ({ t: Date.parse(m.timestamp), p: m.powerKw, v: m.voltage, temp: m.temperature })).reverse()
+    : [];
+  const sensor = state.sensors.find((s) => s.sensorId === id);
+  state.threshold = anom.ok ? anom.body.thresholdKw : (sensor && sensor.maxPowerKw) || null;
+  const anomalies = anom.ok ? anom.body.anomalies : [];
+  state.anomalyTimes = new Set(anomalies.map((a) => Date.parse(a.timestamp)));
+  state.forecast = fc.ok ? fc.body.forecast.predictions.map((x) => ({ t: Date.parse(x.timestamp), p: x.powerKw })) : [];
+
+  renderKpis(sum.ok ? sum.body.summary : null, anomalies.length, state.points);
+  renderAnomalies(anomalies);
+  renderForecast(fc);
+  draw();
+}
+
+/* ---------- rendering ---------- */
+function renderKpis(s, anomalyCount, points) {
+  const last = points.length ? points[points.length - 1] : null;
+  const cards = [
+    ["Dernière puissance", last ? nf(last.p) : "–", "kW"],
+    ["Moyenne", s ? nf(s.avgPowerKw) : "–", "kW"],
+    ["Maximum", s ? nf(s.maxPowerKw) : "–", "kW"],
+    ["Énergie estimée", s ? nf(s.energyKwh, 3) : "–", "kWh"],
+    ["Dépassements du seuil", s ? nf(s.thresholdExceedances, 0) : "–", "", s && s.thresholdExceedances > 0],
+    ["Anomalies", nf(anomalyCount, 0), "", anomalyCount > 0],
+  ];
+  $("kpis").innerHTML = "";
+  for (const [label, value, unit, alert] of cards) {
+    const d = document.createElement("div");
+    d.className = "card kpi" + (alert ? " alert" : "");
+    const l = document.createElement("span"); l.textContent = label;
+    const v = document.createElement("strong"); v.textContent = value;
+    if (unit) { const u = document.createElement("small"); u.textContent = unit; v.appendChild(u); }
+    d.append(l, v);
+    $("kpis").appendChild(d);
+  }
+}
+
+function renderAnomalies(list) {
+  const body = $("anoms");
+  body.innerHTML = "";
+  if (!list.length) {
+    const tr = body.insertRow(); const td = tr.insertCell(); td.colSpan = 3; td.className = "muted";
+    td.textContent = "Aucune anomalie sur la période."; return;
+  }
+  for (const a of list.slice(-8).reverse()) {
+    const tr = body.insertRow();
+    tr.insertCell().textContent = hhmmss(a.timestamp);
+    tr.insertCell().textContent = nf(a.powerKw) + " kW";
+    const td = tr.insertCell();
+    if (a.aboveThreshold) { const s = document.createElement("span"); s.className = "tag bad"; s.textContent = "seuil"; td.appendChild(s); }
+    if (a.zScoreOutlier) { const s = document.createElement("span"); s.className = "tag"; s.textContent = "z = " + nf(a.zScore, 1); td.appendChild(s); }
+  }
+}
+
+function renderForecast(fc) {
+  const dl = $("forecast");
+  dl.innerHTML = "";
+  const add = (k, v) => { const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; dl.append(dt, dd); };
+  if (!fc.ok) { add("État", fc.status === 422 ? "pas assez de mesures (≥ 10)" : "indisponible"); $("m-model").textContent = "–"; return; }
+  const f = fc.body.forecast;
+  $("m-model").textContent = f.model === "persistence" ? "persistance" : "régression";
+  add("Modèle retenu", f.model);
+  add("MAE / RMSE", `${nf(f.mae)} / ${nf(f.rmse)} kW`);
+  add("MAE droite", nf(f.linearMae) + " kW");
+  add("MAE persistance", nf(f.baselineMae) + " kW");
+  add("Horizon", `${f.predictions.length} pas de ${f.stepSeconds} s`);
+}
+
+/* ---------- chart (canvas, sans dépendance) ---------- */
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function niceStep(max, ticks) {
+  const raw = max / ticks, pow = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / pow;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * pow;
+}
+
+let layout = null;
+function draw() {
+  const canvas = $("chart"), ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const colors = { text: css("--muted"), grid: css("--grid"), line: css("--accent"), warn: css("--warn"),
+                   bad: css("--bad"), fc: css("--forecast"), bg: css("--surface") };
+  const pad = { l: 46, r: 14, t: 10, b: 26 };
+  const pts = state.points;
+  ctx.font = "12px system-ui, sans-serif";
+  if (!pts.length) {
+    ctx.fillStyle = colors.text; ctx.textAlign = "center";
+    ctx.fillText("Aucune mesure sur la période — lancez le simulateur ou envoyez une mesure.", W / 2, H / 2);
+    layout = null; return;
+  }
+  // zoom sur les données si la première mesure est plus récente que le début de la période
+  const t0 = pts[0].t > state.from ? pts[0].t - Math.max(1000, (state.to - pts[0].t) * 0.02) : state.from;
+  const t1 = Math.max(state.to, state.forecast.length ? state.forecast[state.forecast.length - 1].t : 0);
+  let ymax = Math.max(...pts.map((p) => p.p), ...state.forecast.map((p) => p.p), state.threshold || 0) * 1.1;
+  if (!(ymax > 0)) ymax = 1;
+  const step = niceStep(ymax, 5);
+  ymax = Math.ceil(ymax / step) * step;
+  const X = (t) => pad.l + (t - t0) / (t1 - t0) * (W - pad.l - pad.r);
+  const Y = (v) => H - pad.b - v / ymax * (H - pad.t - pad.b);
+  layout = { X, Y, pad, W, H, t0, t1 };
+
+  ctx.strokeStyle = colors.grid; ctx.fillStyle = colors.text; ctx.lineWidth = 1; ctx.textAlign = "right";
+  for (let v = 0; v <= ymax + 1e-9; v += step) {
+    ctx.beginPath(); ctx.moveTo(pad.l, Y(v)); ctx.lineTo(W - pad.r, Y(v)); ctx.stroke();
+    ctx.fillText(nf(v, step < 1 ? 1 : 0), pad.l - 6, Y(v) + 4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const t = t0 + (t1 - t0) * i / 5;
+    ctx.textAlign = i === 5 ? "right" : "center";
+    ctx.fillText(new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), i === 5 ? W - pad.r : X(t), H - 8);
+  }
+  if (state.threshold != null) {
+    ctx.strokeStyle = colors.warn; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pad.l, Y(state.threshold)); ctx.lineTo(W - pad.r, Y(state.threshold)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // mesures
+  ctx.strokeStyle = colors.line; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
+  ctx.stroke();
+  // prévision
+  if (state.forecast.length) {
+    const last = pts[pts.length - 1];
+    ctx.strokeStyle = colors.fc; ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(X(last.t), Y(last.p));
+    state.forecast.forEach((p) => ctx.lineTo(X(p.t), Y(p.p)));
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  // anomalies
+  ctx.fillStyle = colors.bad;
+  for (const p of pts) if (state.anomalyTimes.has(p.t)) { ctx.beginPath(); ctx.arc(X(p.t), Y(p.p), 4.5, 0, 6.3); ctx.fill(); }
+  // survol
+  if (state.hover != null && pts[state.hover]) {
+    const p = pts[state.hover];
+    ctx.strokeStyle = colors.text; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(X(p.t), pad.t); ctx.lineTo(X(p.t), H - pad.b); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = colors.bg; ctx.strokeStyle = colors.line; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(X(p.t), Y(p.p), 5, 0, 6.3); ctx.fill(); ctx.stroke();
+  }
+}
+
+$("chart").addEventListener("mousemove", (e) => {
+  if (!layout || !state.points.length) return;
+  const rect = e.target.getBoundingClientRect(), x = e.clientX - rect.left;
+  let best = 0, bd = Infinity;
+  state.points.forEach((p, i) => { const d = Math.abs(layout.X(p.t) - x); if (d < bd) { bd = d; best = i; } });
+  state.hover = best; draw();
+  const p = state.points[best], tip = $("tip");
+  tip.innerHTML = "";
+  const l1 = document.createElement("div"); l1.textContent = hhmmss(p.t) + (state.anomalyTimes.has(p.t) ? "  ⚠ anomalie" : "");
+  const l2 = document.createElement("div"); l2.innerHTML = "<b></b>"; l2.firstChild.textContent = nf(p.p, 3) + " kW";
+  const l3 = document.createElement("div"); l3.className = "muted";
+  l3.textContent = `${nf(p.v, 1)} V · ${p.temp == null ? "–" : nf(p.temp, 1) + " °C"}`;
+  tip.append(l1, l2, l3);
+  tip.style.display = "block";
+  const tx = Math.min(layout.X(p.t) + 12, layout.W - tip.offsetWidth - 4);
+  tip.style.left = Math.max(tx, 4) + "px"; tip.style.top = Math.max(layout.Y(p.p) - 50, 4) + "px";
+});
+$("chart").addEventListener("mouseleave", () => { state.hover = null; $("tip").style.display = "none"; draw(); });
+window.addEventListener("resize", draw);
+
+/* ---------- démo : envoi de mesures ---------- */
+async function send(kind) {
+  const id = $("sensor").value || DEFAULT_SENSOR;
+  const sensor = state.sensors.find((s) => s.sensorId === id);
+  const limit = (sensor && sensor.maxPowerKw) || 8;
+  const payload = { sensorId: id, timestamp: new Date().toISOString(), voltage: 230, temperature: 22 };
+  if (kind === "normal") payload.powerKw = +(limit * (0.3 + Math.random() * 0.3)).toFixed(2);
+  if (kind === "spike") payload.powerKw = +(limit * 1.8).toFixed(2);
+  if (kind === "invalid") { delete payload.sensorId; payload.powerKw = -3; }
+  const r = await api("/collector/api/measurements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const res = $("result");
+  res.classList.remove("muted");
+  const sent = JSON.stringify(payload);
+  if (r.status === 202) res.textContent = `✔ HTTP 202 — acceptée et publiée dans Redis\n${sent}`;
+  else res.textContent = `✘ HTTP ${r.status} — ${r.body && r.body.detail ? r.body.detail : "erreur"}${r.body && r.body.errors ? "\n" + r.body.errors.join("\n") : ""}\n${sent}`;
+  setTimeout(refresh, 1500);   // laisse Redis → Storage → Cassandra faire son travail
+}
+document.querySelectorAll("[data-send]").forEach((b) => b.addEventListener("click", () => send(b.dataset.send)));
+
+/* ---------- boucle ---------- */
+async function refresh() {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    await loadSensors();
+    await Promise.all([loadSensorData(), loadHealth(), loadMetrics()]);
+    $("updated").textContent = "Mis à jour à " + new Date().toLocaleTimeString("fr-FR");
+  } catch (e) {
+    $("updated").textContent = "Erreur de rafraîchissement : " + e.message;
+  } finally { state.busy = false; }
+}
+$("sensor").addEventListener("change", refresh);
+$("range").addEventListener("change", refresh);
+$("theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark"; draw();
+});
+setInterval(() => { if ($("auto").checked && !document.hidden) refresh(); }, 3000);
+refresh();
+</script>
+</body>
+</html>
