@@ -72,12 +72,14 @@ docker compose down -v     # ⚠ supprime aussi les données
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64   # si le JDK par défaut n'a pas javac
-mvn test                          # tests unitaires (19) — aucune base requise
+mvn test                          # 19 tests unitaires + 6 tests d'intégration (Testcontainers : vrais Redis, Cassandra,
+                                  # MongoDB ; ~1 min ; ignorés si Docker est absent)
 scripts/e2e-test.sh               # bout en bout, plateforme lancée (18 vérifications, ~1 min)
 scripts/e2e-test.sh --full-restart  # + docker compose down/up et contrôle de la persistance (~3 min)
+python3 scripts/perf-test.py seed|read|load   # mesures de performance (voir docs/performance.md)
 ```
 
-Preuves de tests : [docs/tests.md](docs/tests.md).
+Preuves de tests : [docs/tests.md](docs/tests.md) · Performance : [docs/performance.md](docs/performance.md) · Rapport : [docs/rapport.md](docs/rapport.md).
 
 ## Observabilité
 
@@ -100,8 +102,8 @@ curl -s localhost:8081/actuator/prometheus | grep smartenergy
 ```
 collector-service/  storage-service/  analytics-service/   # modules Maven Spring Boot (+ Dockerfile)
 simulator/          # simulateur de capteurs (Python, stdlib)
-scripts/            # init-cassandra.cql, sample-data.json, e2e-test.sh
-docs/               # architecture.md, api.md, tests.md
+scripts/            # init-cassandra.cql, sample-data.json, e2e-test.sh, perf-test.py
+docs/               # rapport.md, architecture.md, api.md, tests.md, performance.md
 docker-compose.yml  docker-compose.dev.yml  .env.example
 models/             # réservé aux modèles IA exportés (vide : voir limites)
 ```
@@ -110,6 +112,7 @@ models/             # réservé aux modèles IA exportés (vide : voir limites)
 
 - **Prévision** : baseline par régression linéaire (MAE/RMSE rapportés). Elle ne capture pas la saisonnalité et peut être moins bonne que la persistance (`baselineMae` est renvoyé pour le montrer). Pas de LSTM/DJL/ONNX.
 - **Détection z-score** : σ est calculé sur la période demandée *y compris* les anomalies (effet de masque sur de petits échantillons) ; le seuil par capteur (`maxPowerKw`) reste la détection fiable.
+- **Performance** : le goulot est le Storage (~400 mesures/s, un consumer + une écriture conditionnelle par message) ; le flux Redis absorbe l'excédent sans perte.
 - **Fiabilité** : livraison *at-least-once* avec persistance idempotente. Fenêtre résiduelle : si le service s'arrête entre l'insertion Cassandra et la mise à jour de l'agrégat MongoDB, l'agrégat du jour peut omettre une mesure (Cassandra reste la source de vérité ; `/api/analytics` recalcule depuis Cassandra).
 - Pas d'authentification/JWT, ni Prometheus/Grafana, ni API Gateway, ni Kafka/Kubernetes (extensions de niveau 2 non réalisées).
 - Cassandra à un seul nœud, `replication_factor = 1` (développement).

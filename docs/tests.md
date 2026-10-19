@@ -2,7 +2,7 @@
 
 Résultats obtenus le 2026-10-19 sur la plateforme lancée par `docker compose up -d --build` (Cassandra 5.0, Redis 7, MongoDB 7, JDK 17).
 
-## Tests unitaires — `mvn test` (JDK 17) : 19 tests, 0 échec
+## Tests unitaires — `mvn test` (JDK 17) : 19 tests, 0 échec (25 avec les tests d'intégration ci-dessous)
 
 | Module | Classe | Tests | Ce qui est vérifié |
 |---|---|---|---|
@@ -11,7 +11,16 @@ Résultats obtenus le 2026-10-19 sur la plateforme lancée par `docker compose u
 | storage | `MeasurementProcessorTest` | 3 | Mesure nouvelle → stockée + agrégat + cache ; dépassement de seuil → anomalie comptée ; **doublon → agrégat et cache intacts** |
 | analytics | `ComputeTest` | 7 | Énergie (2 kW × 1 h = 2 kWh), trous ignorés, moyenne/min/max/dépassements, pic détecté (seuil + z-score), série plate sans anomalie, tendance linéaire retrouvée (MAE = 0), refus si < 10 points |
 
-## Tests d'intégration — `scripts/e2e-test.sh` : 18/18 réussis
+## Tests d'intégration JUnit + Testcontainers : 6 tests, 0 échec
+
+Vrais Redis 7, Cassandra 5.0 et MongoDB 7 démarrés dans Docker par les tests (le schéma vient de `scripts/init-cassandra.cql`). Ignorés automatiquement si Docker est absent.
+
+| Classe | Tests | Ce qui est vérifié |
+|---|---|---|
+| `CollectorRedisIntegrationTest` | 2 | API → Redis : une mesure valide crée exactement 1 événement avec tous ses champs ; une mesure invalide (400) n'en crée aucun |
+| `StoragePipelineIntegrationTest` | 4 | Redis → Storage → Cassandra/MongoDB → API : persistance + accusé + agrégat + anomalie + lecture REST ; doublon stocké une seule fois (agrégat = 2 pour 3 messages dont 1 doublon) ; message illisible → dead-letter sans bloquer le suivant ; 3 messages ajoutés consumer arrêté → conservés dans Redis puis tous persistés au redémarrage |
+
+## Tests de bout en bout — `scripts/e2e-test.sh` : 18/18 réussis
 
 Chaîne complète sur la vraie plateforme (API → Redis → Storage → Cassandra/MongoDB → API).
 
