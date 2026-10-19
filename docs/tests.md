@@ -2,14 +2,15 @@
 
 Résultats obtenus le 2026-10-19 sur la plateforme lancée par `docker compose up -d --build` (Cassandra 5.0, Redis 7, MongoDB 7, JDK 17).
 
-## Tests unitaires — `mvn test` (JDK 17) : 19 tests, 0 échec (25 avec les tests d'intégration ci-dessous)
+## Tests unitaires — `mvn test` (JDK 17) : 22 tests, 0 échec (28 avec les tests d'intégration ci-dessous)
 
 | Module | Classe | Tests | Ce qui est vérifié |
 |---|---|---|---|
 | collector | `MeasurementControllerTest` | 5 | 202 + publication ; 400 sans `sensorId` (rien publié) ; 400 puissance négative ; 400 timestamp illisible ; 503 si Redis en panne |
 | storage | `MeasurementParserTest` | 4 | Parsing d'un événement Redis, température optionnelle, rejets (`sensorId`, nombres, date, négatif) |
 | storage | `MeasurementProcessorTest` | 3 | Mesure nouvelle → stockée + agrégat + cache ; dépassement de seuil → anomalie comptée ; **doublon → agrégat et cache intacts** |
-| analytics | `ComputeTest` | 7 | Énergie (2 kW × 1 h = 2 kWh), trous ignorés, moyenne/min/max/dépassements, pic détecté (seuil + z-score), série plate sans anomalie, tendance linéaire retrouvée (MAE = 0), refus si < 10 points |
+| storage | `EnergyCalculatorTest` | 2 | Énergie du résumé quotidien (2 kW × 1 h = 2 kWh, entrée « plus récent d'abord »), trous ignorés |
+| analytics | `ComputeTest` | 8 | Énergie, trous ignorés, moyenne/min/max/dépassements, pic détecté (seuil + z-score), série plate sans anomalie, tendance linéaire retrouvée (MAE = 0), repli sur la persistance si la droite est pire, refus si < 10 points |
 
 ## Tests d'intégration JUnit + Testcontainers : 6 tests, 0 échec
 
@@ -55,5 +56,5 @@ Anomalie injectée sur `SENSOR-001` (puissance × 3 pendant 6 s).
 
 ## Constats utiles pour le rapport
 
-- Prévision linéaire sur 30 s de sinusoïde : MAE 0,64 kW contre 0,29 kW pour la persistance → la baseline est **moins bonne** qu'une prédiction naïve ; il faut un modèle capable de saisonnalité (LSTM, Holt-Winters) et une fenêtre plus longue.
+- Prévision sur une sinusoïde : la droite est moins bonne que la persistance (MAE 0,40 contre 0,30 kW) ; le service retient donc automatiquement la persistance (`"model":"persistence"`). Un modèle saisonnier (Holt-Winters, LSTM) serait nécessaire pour faire mieux.
 - z-score : avec 5 points anormaux sur 30, le pic gonfle σ (z ≈ 2,3 < 3) et n'est pas signalé par le z-score, mais l'est par le seuil du capteur (effet de masque).

@@ -1,9 +1,12 @@
 package com.smartenergy.storage.api;
 
+import com.smartenergy.storage.cassandra.MeasurementStore;
+import com.smartenergy.storage.model.Measurement;
 import com.smartenergy.storage.mongo.AggregateStore;
 import com.smartenergy.storage.mongo.DailyAggregate;
 import com.smartenergy.storage.mongo.Sensor;
 import com.smartenergy.storage.mongo.SensorRegistry;
+import com.smartenergy.storage.processing.EnergyCalculator;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -30,10 +34,12 @@ public class SensorController {
 
     private final SensorRegistry sensors;
     private final AggregateStore aggregates;
+    private final MeasurementStore measurements;
 
-    public SensorController(SensorRegistry sensors, AggregateStore aggregates) {
+    public SensorController(SensorRegistry sensors, AggregateStore aggregates, MeasurementStore measurements) {
         this.sensors = sensors;
         this.aggregates = aggregates;
+        this.measurements = measurements;
     }
 
     @Operation(summary = "Créer un capteur")
@@ -71,7 +77,8 @@ public class SensorController {
     }
 
     @Operation(summary = "Résumé quotidien d'un capteur (agrégat MongoDB)",
-            description = "Moyenne, min, max, nombre de mesures et de dépassements pour un jour UTC (défaut: aujourd'hui).")
+            description = "Moyenne, min, max, nombre de mesures et de dépassements (agrégat MongoDB) et énergie estimée "
+                    + "(calculée sur la partition Cassandra du jour) pour un jour UTC (défaut: aujourd'hui).")
     @GetMapping("/{id}/daily-summary")
     public DailySummary dailySummary(@PathVariable String id,
                                      @RequestParam(required = false)
@@ -79,12 +86,15 @@ public class SensorController {
         LocalDate day = date != null ? date : LocalDate.now(ZoneOffset.UTC);
         DailyAggregate a = aggregates.find(id, day).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Aucune donnée pour " + id + " le " + day));
+        Instant start = day.atStartOfDay(ZoneOffset.UTC).toInstant();
+        List<Measurement> points = measurements.findBetween(id, start, start.plusSeconds(86_399), 100_000);
         return new DailySummary(a.sensorId(), a.date(), a.count(), a.avgPowerKw(),
-                a.minPowerKw(), a.maxPowerKw(), a.anomalyCount());
+                a.minPowerKw(), a.maxPowerKw(), a.anomalyCount(), EnergyCalculator.energyKwh(points, 3600));
     }
 
     public record DailySummary(String sensorId, String date, long count, double avgPowerKw,
-                               double minPowerKw, double maxPowerKw, long anomalyCount) {
+                               double minPowerKw, double maxPowerKw, long anomalyCount,
+                               double energyKwh) {
     }
 
     private static ResponseStatusException notFound(String id) {

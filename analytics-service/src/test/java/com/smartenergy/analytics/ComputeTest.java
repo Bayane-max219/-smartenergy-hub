@@ -80,6 +80,15 @@ class ComputeTest {
     }
 
     @Test
+    void forecastFallsBackToPersistenceWhenLinearModelIsWorse() {
+        // sinusoïde : une droite ne la suit pas, la dernière valeur connue fait mieux sur le jeu de test
+        List<Point> pts = series(60, 60, i -> 3 + Math.sin(2 * Math.PI * i / 12.0));
+        LinearForecaster.Forecast f = LinearForecaster.forecast(pts, 2);
+        assertTrue(f.mae() <= f.baselineMae() + 1e-12, "le modèle retenu ne doit jamais être pire que la baseline");
+        assertEquals(f.linearMae() <= f.baselineMae() ? "linear-regression" : "persistence", f.model());
+    }
+
+    @Test
     void forecastNeedsEnoughPoints() {
         assertThrows(IllegalArgumentException.class, () -> LinearForecaster.forecast(series(5, 60, i -> 1.0), 3));
     }

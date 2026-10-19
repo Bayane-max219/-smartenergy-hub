@@ -88,7 +88,7 @@ La clé de partition `(sensor_id, day)` borne la taille de chaque partition : un
 
 **Storage Service** — consumer Redis (§6), persistance (§7), API : CRUD des capteurs, résumé quotidien, historique, dernière mesure. Un capteur inconnu est auto-enregistré avec le seuil par défaut (8 kW).
 
-**Analytics Service** — voir §8.
+**Analytics Service** — voir §8. Le résumé quotidien du Storage (`daily-summary`) combine l'agrégat MongoDB (moyenne, min, max, anomalies) et l'énergie estimée calculée sur la partition Cassandra du jour.
 
 Tous les services : OpenAPI/Swagger (`/swagger-ui.html`), Actuator, `/api/health`, profils Spring (`default` pour localhost, `docker` pour le conteneur), configuration par variables d'environnement.
 
@@ -118,7 +118,7 @@ Pour chaque message, dans l'ordre : (1) `INSERT … IF NOT EXISTS` dans Cassandr
 
 **Niveau B — anomalies** : seuil par capteur (P > P_max) et score z = (P − μ)/σ avec |z| > 3 (seuil réglable). *Limite observée* : μ et σ sont calculés sur la période qui contient les anomalies ; avec 5 points anormaux sur 30, σ est gonflé et le pic de 12 kW n'obtient que z ≈ 2,3, alors que le seuil du capteur le détecte. Un z-score robuste (médiane/MAD) ou une fenêtre glissante hors anomalies serait préférable.
 
-**Niveau C — prévision** : régression linéaire P(t) = a·t + b ; démarche : séparation chronologique 80 % entraînement / 20 % test, mesure de MAE et RMSE sur le test, comparaison à une baseline de persistance (dernière valeur), ré-entraînement sur tout l'historique, prévision de `horizon` pas (pas = médiane des intervalles).
+**Niveau C — prévision** : régression linéaire P(t) = a·t + b comparée à une baseline de persistance (dernière valeur) ; démarche : séparation chronologique 80 % entraînement / 20 % test, mesure de MAE et RMSE des deux modèles sur le test, **sélection du meilleur**, ré-entraînement sur tout l'historique, prévision de `horizon` pas (pas = médiane des intervalles).
 
 | Information demandée par le sujet | Réponse |
 |---|---|
@@ -126,9 +126,9 @@ Pour chaque message, dans l'ordre : (1) `INSERT … IF NOT EXISTS` dans Cassandr
 | Variables utilisées | Puissance en fonction du temps (univarié) |
 | Valeurs manquantes | Aucune imputation : les points absents sont simplement absents ; trou > 1 h ignoré pour l'énergie |
 | Normalisation | Aucune (régression linéaire non régularisée) |
-| Métriques | MAE, RMSE, et MAE de la baseline de persistance |
+| Métriques | MAE, RMSE du modèle retenu ; MAE de la droite (`linearMae`) et de la persistance (`baselineMae`) |
 
-*Résultat honnête* : sur 30 s de sinusoïde, MAE = 0,64 kW contre 0,29 kW pour la persistance — la prévision linéaire est **moins bonne qu'une prédiction naïve**, car une droite ne représente pas un cycle. Ce modèle sert de point de référence mesurable ; un vrai modèle (Holt-Winters, LSTM exporté en ONNX et chargé avec DJL) devrait au moins battre `baselineMae`. Le dossier `models/` est prévu pour cela mais reste vide.
+*Résultat honnête* : sur les données simulées (sinusoïde), la droite est moins bonne que la persistance (MAE 0,40 contre 0,30 kW), car une droite ne représente pas un cycle ; le service retient alors la persistance (`"model":"persistence"`) plutôt que de proposer un modèle pire que le naïf. Un vrai modèle (Holt-Winters, LSTM exporté en ONNX et chargé avec DJL) devrait au moins battre ces deux références. Le dossier `models/` est prévu pour cela mais reste vide.
 
 ## 9. Conteneurisation et déploiement
 
@@ -143,7 +143,7 @@ Pour chaque message, dans l'ordre : (1) `INSERT … IF NOT EXISTS` dans Cassandr
 
 | Niveau | Contenu | Résultat |
 |---|---|---|
-| Unitaires (19) | validation HTTP, parsing des événements, logique de persistance (doublon, anomalie), énergie, détection, prévision | 19/19 |
+| Unitaires (22) | validation HTTP, parsing des événements, logique de persistance (doublon, anomalie), énergie (résumé quotidien et analytics), détection, prévision | 22/22 |
 | Intégration JUnit + Testcontainers (6), vrais Redis/Cassandra/MongoDB | API → Redis (202 crée un événement, 400 n'en crée aucun) ; Redis → Storage → Cassandra → MongoDB → API ; doublon stocké une fois ; message illisible → dead-letter sans bloquer ; messages ajoutés Storage arrêté traités après redémarrage | 6/6 |
 | Bout en bout sur la plateforme Docker (`scripts/e2e-test.sh`) | scénarios 1 à 7 du sujet, idempotence, redémarrage complet | 18/18 |
 | Simulateur 5 capteurs × 2 min | 300 envoyées, 300 acceptées, 300 stockées | 0 perte |
@@ -160,7 +160,7 @@ Tableau de preuve complet : `docs/tests.md`.
 
 **Sécurité mise en place** : aucun secret dans Git (variables d'environnement, `.env` ignoré, `.env.example` fourni) ; entrées validées ; bases non exposées par défaut ; conteneurs non-root ; profils de configuration. **Endpoints sensibles identifiés** : `POST /api/measurements`, `POST/PUT /api/sensors`, endpoints Actuator. **Non réalisé** : authentification/autorisation (Spring Security, JWT, rôles), HTTPS — aujourd'hui toute personne atteignant les ports peut écrire.
 
-**Limites** : prévision linéaire faible ; z-score sensible aux anomalies nombreuses ; livraison *at-least-once* avec fenêtre résiduelle sur l'agrégat (§7) ; Cassandra mono-nœud (facteur de réplication 1) ; un seul consumer Storage ; pas de Prometheus/Grafana (les métriques `smartenergy_*` sont exposées au format Prometheus mais non collectées) ; extensions de niveau 2 non réalisées.
+**Limites** : prévision simple (sans saisonnalité) ; z-score sensible aux anomalies nombreuses ; livraison *at-least-once* avec fenêtre résiduelle sur l'agrégat (§7) ; Cassandra mono-nœud (facteur de réplication 1) ; un seul consumer Storage ; pas de Prometheus/Grafana (les métriques `smartenergy_*` sont exposées au format Prometheus mais non collectées) ; extensions de niveau 2 non réalisées.
 
 **Difficultés rencontrées**
 - JDK 21 de la machine sans compilateur (JRE seul) → build avec JDK 17, qui est aussi la cible du sujet.

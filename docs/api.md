@@ -31,7 +31,7 @@ Exemple 400 : `{"status":400,"detail":"Mesure invalide","errors":["sensorId: mus
 | GET | `/api/sensors` | Liste des capteurs |
 | GET | `/api/sensors/{id}` | Métadonnées (404 si inconnu) |
 | PUT | `/api/sensors/{id}` | Remplace un capteur (`sensorId` du corps = id de l'URL) |
-| GET | `/api/sensors/{id}/daily-summary?date=2026-09-30` | Agrégat MongoDB du jour (défaut : aujourd'hui) : count, avg, min, max, anomalyCount |
+| GET | `/api/sensors/{id}/daily-summary?date=2026-09-30` | Agrégat MongoDB du jour (défaut : aujourd'hui) : count, avg, min, max, anomalyCount, energyKwh (énergie estimée, calculée sur la partition Cassandra du jour) |
 | GET | `/api/measurements/{sensorId}?from&to&limit` | Historique, plus récent d'abord (`limit` 1–10000, défaut 1000) |
 | GET | `/api/measurements/{sensorId}/latest` | Dernière mesure (cache Redis, repli Cassandra) |
 
@@ -49,8 +49,8 @@ curl -X POST localhost:8082/api/sensors -H 'Content-Type: application/json' -d '
 |---|---|---|
 | GET | `/api/analytics/{id}/summary?from&to` | count, moyenne, min, max, énergie estimée (kWh), nombre de dépassements du seuil |
 | GET | `/api/analytics/{id}/anomalies?from&to&zThreshold=3` | Mesures > `maxPowerKw` du capteur ou \|z\| > `zThreshold` |
-| GET | `/api/analytics/{id}/forecast?from&to&horizon=6` | Prévision (régression linéaire) + MAE, RMSE, `baselineMae` |
+| GET | `/api/analytics/{id}/forecast?from&to&horizon=6` | Prévision : meilleur de {régression linéaire, persistance} sur un jeu de test ; `model`, `mae`, `rmse`, `linearMae`, `baselineMae` |
 
 - **Énergie** : `E ≈ Σ P_i · Δt_i` (kWh), Δt = écart entre mesures successives ; un trou supérieur à 1 h n'est pas compté.
 - **404** si aucune mesure sur la période ; **422** si trop peu de mesures pour la prévision (minimum 10).
-- La prévision est une *baseline* : comparez `mae` à `baselineMae` (persistance) avant de lui faire confiance.
+- La prévision est volontairement simple : `model` indique le modèle retenu (jamais pire que la persistance sur le jeu de test) ; elle ne modélise pas la saisonnalité.

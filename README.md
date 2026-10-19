@@ -72,7 +72,7 @@ docker compose down -v     # ⚠ supprime aussi les données
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64   # si le JDK par défaut n'a pas javac
-mvn test                          # 19 tests unitaires + 6 tests d'intégration (Testcontainers : vrais Redis, Cassandra,
+mvn test                          # 22 tests unitaires + 6 tests d'intégration (Testcontainers : vrais Redis, Cassandra,
                                   # MongoDB ; ~1 min ; ignorés si Docker est absent)
 scripts/e2e-test.sh               # bout en bout, plateforme lancée (18 vérifications, ~1 min)
 scripts/e2e-test.sh --full-restart  # + docker compose down/up et contrôle de la persistance (~3 min)
@@ -110,7 +110,7 @@ models/             # réservé aux modèles IA exportés (vide : voir limites)
 
 ## Limites connues
 
-- **Prévision** : baseline par régression linéaire (MAE/RMSE rapportés). Elle ne capture pas la saisonnalité et peut être moins bonne que la persistance (`baselineMae` est renvoyé pour le montrer). Pas de LSTM/DJL/ONNX.
+- **Prévision** : régression linéaire comparée à la persistance (dernière valeur) sur un jeu de test ; le meilleur des deux est retenu (`model`, `mae`, `rmse`, `linearMae`, `baselineMae`). Aucun des deux ne capture la saisonnalité ; pas de LSTM/DJL/ONNX.
 - **Détection z-score** : σ est calculé sur la période demandée *y compris* les anomalies (effet de masque sur de petits échantillons) ; le seuil par capteur (`maxPowerKw`) reste la détection fiable.
 - **Performance** : le goulot est le Storage (~400 mesures/s, un consumer + une écriture conditionnelle par message) ; le flux Redis absorbe l'excédent sans perte.
 - **Fiabilité** : livraison *at-least-once* avec persistance idempotente. Fenêtre résiduelle : si le service s'arrête entre l'insertion Cassandra et la mise à jour de l'agrégat MongoDB, l'agrégat du jour peut omettre une mesure (Cassandra reste la source de vérité ; `/api/analytics` recalcule depuis Cassandra).
