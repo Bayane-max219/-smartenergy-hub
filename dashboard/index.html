@@ -95,7 +95,9 @@
         <option value="300">5 dernières minutes</option>
         <option value="900" selected>15 dernières minutes</option>
         <option value="3600">1 dernière heure</option>
+        <option value="86400">24 dernières heures</option>
       </select>
+      <button id="sim" class="primary" title="Envoie des mesures simulées (SENSOR-001 à 003) au Collector, comme le simulateur Python">▶ Lancer la simulation</button>
       <label class="toggle"><input type="checkbox" id="auto" checked> Temps réel</label>
       <button id="theme" title="Basculer thème clair / sombre">Thème</button>
     </div>
@@ -324,7 +326,8 @@ function draw() {
   ctx.font = "12px system-ui, sans-serif";
   if (!pts.length) {
     ctx.fillStyle = colors.text; ctx.textAlign = "center";
-    ctx.fillText("Aucune mesure sur la période — lancez le simulateur ou envoyez une mesure.", W / 2, H / 2);
+    ctx.fillText("Aucune mesure sur cette période.", W / 2, H / 2 - 8);
+    ctx.fillText("Cliquez sur « Lancer la simulation » (en haut) ou choisissez « 24 dernières heures ».", W / 2, H / 2 + 14);
     layout = null; return;
   }
   // zoom sur les données si la première mesure est plus récente que le début de la période
@@ -436,8 +439,40 @@ $("theme").addEventListener("click", () => {
   const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   root.dataset.theme = dark ? "light" : "dark"; draw();
 });
+/* ---------- simulation intégrée (même équation que simulator.py : P = Pbase + A·sin(2πt/T) + bruit) ---------- */
+const sim = { timer: null, start: 0, sent: 0 };
+const gauss = () => { let u = 0; for (let i = 0; i < 6; i++) u += Math.random(); return (u - 3) / Math.sqrt(0.5); };
+async function simTick() {
+  const e = (Date.now() - sim.start) / 1000;
+  const spike = e % 40 >= 25 && e % 40 < 31;            // SENSOR-001 : puissance × 3 pendant 6 s toutes les 40 s
+  await Promise.all([0, 1, 2].map((i) => {
+    let p = 3 + 0.3 * i + Math.sin(2 * Math.PI * e / 60 + i * Math.PI / 5) + gauss() * 0.15;
+    if (i === 0 && spike) p *= 3;
+    sim.sent++;
+    return fetch("/collector/api/measurements", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sensorId: "SENSOR-00" + (i + 1), timestamp: new Date().toISOString(),
+                             powerKw: +Math.max(0, p).toFixed(3), voltage: +(230 + gauss() * 1.5).toFixed(1),
+                             temperature: +(22 + gauss() * 0.3).toFixed(1) }) }).catch(() => {});
+  }));
+  $("result").textContent = `Simulation en cours : ${sim.sent} mesures envoyées (3 capteurs, 1 mesure / s).` +
+    (spike ? "\nAnomalie injectée sur SENSOR-001." : "");
+}
+$("sim").addEventListener("click", () => {
+  if (sim.timer) {
+    clearInterval(sim.timer); sim.timer = null;
+    $("sim").textContent = "▶ Lancer la simulation"; $("sim").classList.add("primary");
+    $("result").textContent = `Simulation arrêtée (${sim.sent} mesures envoyées).`;
+  } else {
+    sim.start = Date.now(); sim.sent = 0; sim.timer = setInterval(simTick, 1000); simTick();
+    $("sim").textContent = "■ Arrêter la simulation"; $("sim").classList.remove("primary");
+    $("result").classList.remove("muted");
+    if ($("range").value === "86400") $("range").value = "300";
+  }
+});
+
 setInterval(() => { if ($("auto").checked && !document.hidden) refresh(); }, 3000);
 refresh();
+if (location.search.includes("sim=1")) $("sim").click();   // http://localhost:3000/?sim=1 démarre la simulation directement
 </script>
 </body>
 </html>

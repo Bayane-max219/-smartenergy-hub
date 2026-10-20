@@ -37,7 +37,7 @@ curl localhost:8081/api/health                     # {"status":"UP",...}
 
 ### Tableau de bord
 
-Ouvrir **http://localhost:3000** : état de la chaîne (Collector → Redis → Storage → Analytics), indicateurs, courbe de puissance en temps réel avec seuil du capteur, anomalies (points rouges) et prévision, et trois boutons de démonstration (mesure normale, pic, mesure invalide) qui envoient réellement une mesure au Collector. Page unique sans dépendance externe (`dashboard/index.html`), thème clair/sombre.
+Ouvrir **http://localhost:3000** : état de la chaîne (Collector → Redis → Storage → Analytics), indicateurs, courbe de puissance en temps réel avec seuil du capteur, anomalies (points rouges) et prévision, et trois boutons de démonstration (mesure normale, pic, mesure invalide) qui envoient réellement une mesure au Collector. Le bouton **« Lancer la simulation »** envoie des mesures simulées (3 capteurs, anomalie périodique sur SENSOR-001) directement depuis la page : aucun autre outil n'est nécessaire pour la démonstration (`http://localhost:3000/?sim=1` la démarre automatiquement). La période « 24 dernières heures » permet de revoir les données déjà stockées. Page unique sans dépendance externe (`dashboard/index.html`), thème clair/sombre.
 
 ### Générer des données
 
