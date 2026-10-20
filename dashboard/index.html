@@ -80,6 +80,13 @@
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
   .kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
   .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .hint { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; margin-top: 5px; font-weight: 400; }
+  details.help { padding: 12px 16px; margin-bottom: 14px; }
+  details.help summary { cursor: pointer; font-weight: 600; }
+  details.help ol { margin: 8px 0 2px; padding-left: 20px; color: var(--muted); }
+  details.help li { margin: 3px 0; }
+  details.help b { color: var(--text); }
+  .caption { color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
   footer { margin-top: 18px; color: var(--muted); font-size: 12px; }
   footer a { color: var(--accent); }
 </style>
@@ -103,11 +110,21 @@
     </div>
   </header>
 
+  <details class="card help" open>
+    <summary>Comment lire ce tableau de bord ?</summary>
+    <ol>
+      <li>Des <b>capteurs</b> (ici simulés) mesurent la <b>puissance électrique</b> (en kW) d'un équipement toutes les secondes.</li>
+      <li>Chaque mesure traverse la chaîne ci-dessous : le <b>Collector</b> la vérifie, <b>Redis</b> la met en file d'attente, le <b>Storage</b> l'enregistre dans <b>Cassandra</b> (historique) et <b>MongoDB</b> (capteurs et totaux du jour), puis <b>Analytics</b> calcule moyennes, anomalies et prévision.</li>
+      <li>Cette page lit simplement ces résultats : elle ne calcule rien elle-même.</li>
+      <li>Pour voir quelque chose : cliquez sur <b>« Lancer la simulation »</b> en haut à droite.</li>
+    </ol>
+  </details>
+
   <section class="pipeline" aria-label="Chaîne de traitement">
-    <div class="card stage"><h3><span class="dot" id="d-collector"></span>Collector</h3><p>reçues <b id="m-received">–</b> · rejetées <b id="m-rejected">–</b></p></div>
-    <div class="card stage"><h3><span class="dot" id="d-redis"></span>Redis Streams</h3><p>backlog <b id="m-backlog">–</b> · en attente <b id="m-pending">–</b></p></div>
-    <div class="card stage"><h3><span class="dot" id="d-storage"></span>Storage</h3><p>stockées <b id="m-stored">–</b> · doublons <b id="m-dups">–</b></p></div>
-    <div class="card stage"><h3><span class="dot" id="d-analytics"></span>Analytics</h3><p>prévision <b id="m-model">–</b></p></div>
+    <div class="card stage"><h3><span class="dot" id="d-collector"></span>Collector</h3><p>reçues <b id="m-received">–</b> · rejetées <b id="m-rejected">–</b></p><span class="hint">1. Porte d'entrée : vérifie chaque mesure. <i>Rejetées</i> = mesures invalides refusées.</span></div>
+    <div class="card stage"><h3><span class="dot" id="d-redis"></span>Redis Streams</h3><p>backlog <b id="m-backlog">–</b> · en attente <b id="m-pending">–</b></p><span class="hint">2. File d'attente rapide. <i>Backlog</i> = messages pas encore lus ; <i>en attente</i> = lus mais pas encore enregistrés (0 = tout est à jour).</span></div>
+    <div class="card stage"><h3><span class="dot" id="d-storage"></span>Storage</h3><p>stockées <b id="m-stored">–</b> · doublons <b id="m-dups">–</b></p><span class="hint">3. Enregistre dans les bases. <i>Doublons</i> = même mesure envoyée deux fois, ignorée.</span></div>
+    <div class="card stage"><h3><span class="dot" id="d-analytics"></span>Analytics</h3><p>prévision <b id="m-model">–</b></p><span class="hint">4. Calcule les indicateurs, détecte les anomalies et prévoit la suite.</span></div>
   </section>
 
   <section class="kpis" id="kpis"></section>
@@ -122,16 +139,19 @@
         <span><i class="dashed" style="border-color:var(--forecast)"></i>prévision</span>
       </div>
     </div>
+    <p class="caption">Chaque point de la ligne bleue est une mesure. La ligne orange est la limite autorisée du capteur : au-dessus, c'est un <b>dépassement</b> (points rouges). Les pointillés violets sont la <b>prévision</b> des prochaines secondes. Passez la souris sur la courbe pour lire une mesure.</p>
     <div class="chart-box"><canvas id="chart"></canvas><div id="tip"></div></div>
   </section>
 
   <section class="grid2">
     <div class="card panel">
       <h2>Anomalies détectées</h2>
+      <p class="caption"><b>seuil</b> : la puissance dépasse la limite du capteur. <b>z = …</b> : la valeur s'écarte beaucoup de la moyenne (z &gt; 3 = très inhabituel).</p>
       <table><thead><tr><th>Heure</th><th>Puissance</th><th>Détection</th></tr></thead><tbody id="anoms"></tbody></table>
     </div>
     <div class="card panel">
       <h2>Démo : envoyer une mesure</h2>
+      <p class="caption"><b>Mesure normale</b> : valeur habituelle, acceptée. <b>Pic</b> : valeur trop haute, acceptée puis signalée comme anomalie. <b>Mesure invalide</b> : refusée par le Collector (erreur 400), rien n'est enregistré.</p>
       <div class="actions">
         <button class="primary" data-send="normal">Mesure normale</button>
         <button data-send="spike">Pic (anomalie)</button>
@@ -139,8 +159,9 @@
       </div>
       <div id="result" class="muted">Les mesures partent vers le Collector (POST /api/measurements) puis traversent Redis → Storage → Cassandra/MongoDB.</div>
       <h2 style="margin-top:16px">Prévision</h2>
+      <p class="caption">Estimation de la puissance dans les prochaines secondes. <b>MAE / RMSE</b> = erreur moyenne de la prévision en kW (plus petit = meilleur). <b>Persistance</b> = on suppose que la valeur reste la même ; <b>droite</b> = on prolonge la tendance.</p>
       <dl class="kv" id="forecast"><dt>—</dt><dd class="muted">pas assez de données</dd></dl>
-      <p class="note">Le modèle retenu est le meilleur de {régression linéaire, persistance} sur un jeu de test.</p>
+      <p class="note">Le service compare les deux méthodes sur des données de test et garde la meilleure.</p>
     </div>
   </section>
 
@@ -255,21 +276,22 @@ async function loadSensorData() {
 function renderKpis(s, anomalyCount, points) {
   const last = points.length ? points[points.length - 1] : null;
   const cards = [
-    ["Dernière puissance", last ? nf(last.p) : "–", "kW"],
-    ["Moyenne", s ? nf(s.avgPowerKw) : "–", "kW"],
-    ["Maximum", s ? nf(s.maxPowerKw) : "–", "kW"],
-    ["Énergie estimée", s ? nf(s.energyKwh, 3) : "–", "kWh"],
-    ["Dépassements du seuil", s ? nf(s.thresholdExceedances, 0) : "–", "", s && s.thresholdExceedances > 0],
-    ["Anomalies", nf(anomalyCount, 0), "", anomalyCount > 0],
+    ["Dernière puissance", last ? nf(last.p) : "–", "kW", false, "Dernière mesure reçue : ce que consomme l'équipement maintenant."],
+    ["Moyenne", s ? nf(s.avgPowerKw) : "–", "kW", false, "Puissance moyenne sur la période choisie."],
+    ["Maximum", s ? nf(s.maxPowerKw) : "–", "kW", false, "Plus forte puissance relevée sur la période."],
+    ["Énergie estimée", s ? nf(s.energyKwh, 3) : "–", "kWh", false, "Consommation totale = puissance × durée, additionnée."],
+    ["Dépassements du seuil", s ? nf(s.thresholdExceedances, 0) : "–", "", s && s.thresholdExceedances > 0, "Nombre de mesures au-dessus de la limite du capteur (ligne orange)."],
+    ["Anomalies", nf(anomalyCount, 0), "", anomalyCount > 0, "Mesures jugées anormales (trop hautes ou très éloignées de l'habitude)."],
   ];
   $("kpis").innerHTML = "";
-  for (const [label, value, unit, alert] of cards) {
+  for (const [label, value, unit, alert, hint] of cards) {
     const d = document.createElement("div");
     d.className = "card kpi" + (alert ? " alert" : "");
     const l = document.createElement("span"); l.textContent = label;
     const v = document.createElement("strong"); v.textContent = value;
     if (unit) { const u = document.createElement("small"); u.textContent = unit; v.appendChild(u); }
-    d.append(l, v);
+    const h = document.createElement("span"); h.className = "hint"; h.textContent = hint;
+    d.append(l, v, h);
     $("kpis").appendChild(d);
   }
 }
@@ -358,7 +380,10 @@ function draw() {
   }
   // mesures
   ctx.strokeStyle = colors.line; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.beginPath();
-  pts.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
+  // la ligne est interrompue quand il manque des mesures (ex. simulation arrêtée puis relancée)
+  const steps = pts.slice(1).map((p, i) => p.t - pts[i].t).sort((x, y) => x - y);
+  const gap = Math.max(5000, 5 * (steps.length ? steps[Math.floor(steps.length / 2)] : 1000));
+  pts.forEach((p, i) => (i && p.t - pts[i - 1].t <= gap ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
   ctx.stroke();
   // prévision
   if (state.forecast.length) {
