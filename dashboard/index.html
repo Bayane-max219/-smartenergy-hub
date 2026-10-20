@@ -110,16 +110,6 @@
     </div>
   </header>
 
-  <details class="card help" open>
-    <summary>Comment lire ce tableau de bord ?</summary>
-    <ol>
-      <li>Des <b>capteurs</b> (ici simulés) mesurent la <b>puissance électrique</b> (en kW) d'un équipement toutes les secondes.</li>
-      <li>Chaque mesure traverse la chaîne ci-dessous : le <b>Collector</b> la vérifie, <b>Redis</b> la met en file d'attente, le <b>Storage</b> l'enregistre dans <b>Cassandra</b> (historique) et <b>MongoDB</b> (capteurs et totaux du jour), puis <b>Analytics</b> calcule moyennes, anomalies et prévision.</li>
-      <li>Cette page lit simplement ces résultats : elle ne calcule rien elle-même.</li>
-      <li>Pour voir quelque chose : cliquez sur <b>« Lancer la simulation »</b> en haut à droite.</li>
-    </ol>
-  </details>
-
   <section class="pipeline" aria-label="Chaîne de traitement">
     <div class="card stage"><h3><span class="dot" id="d-collector"></span>Collector</h3><p>reçues <b id="m-received">–</b> · rejetées <b id="m-rejected">–</b></p><span class="hint">1. Porte d'entrée : vérifie chaque mesure. <i>Rejetées</i> = mesures invalides refusées.</span></div>
     <div class="card stage"><h3><span class="dot" id="d-redis"></span>Redis Streams</h3><p>backlog <b id="m-backlog">–</b> · en attente <b id="m-pending">–</b></p><span class="hint">2. File d'attente rapide. <i>Backlog</i> = messages pas encore lus ; <i>en attente</i> = lus mais pas encore enregistrés (0 = tout est à jour).</span></div>
